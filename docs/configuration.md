@@ -499,3 +499,8 @@ spring.jpa.hibernate.ddl-auto=create-drop
 spring.ai.google.api.key=test_key
 jwt.secret=test_secret_key_for_testing_only
 ```
+
+---
+
+#### Now that you've finished reading this file, you can return to the main documentation:  
+- [🔙📖 Go back to README](../README.md)

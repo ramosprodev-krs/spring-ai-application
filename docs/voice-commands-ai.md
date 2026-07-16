@@ -311,3 +311,8 @@ curl -X POST http://localhost:8080/api/v1/expense/process \
 - 🎯 Natural language date parsing
 - 🎯 Currency conversion
 - 🎯 Recurring expense recognition
+
+---
+
+#### Now that you've finished reading this file, you can return to the main documentation:  
+- [🔙📖 Go back to README](../README.md)
