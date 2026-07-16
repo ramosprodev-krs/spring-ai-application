@@ -63,6 +63,66 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
+    @ExceptionHandler(AuthenticationRequiredException.class)
+    public ResponseEntity<StandardException> handleAuthenticationRequiredException(AuthenticationRequiredException ex, HttpServletRequest request) {
+        logger.error("Authentication required: {}", ex.getMessage());
+
+        StandardException error = new StandardException(
+                Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime(),
+                HttpStatus.UNAUTHORIZED.value(),
+                "Authentication Required",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(QueryValidationException.class)
+    public ResponseEntity<StandardException> handleQueryValidationException(QueryValidationException ex, HttpServletRequest request) {
+        logger.error("Query validation failed: {}", ex.getMessage());
+
+        StandardException error = new StandardException(
+                Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime(),
+                HttpStatus.BAD_REQUEST.value(),
+                "Query Validation Failed",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<StandardException> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
+        logger.error("Invalid argument: {}", ex.getMessage());
+
+        StandardException error = new StandardException(
+                Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime(),
+                HttpStatus.BAD_REQUEST.value(),
+                "Invalid Argument",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<StandardException> handleIllegalStateException(IllegalStateException ex, HttpServletRequest request) {
+        logger.error("Illegal state: {}", ex.getMessage());
+
+        StandardException error = new StandardException(
+                Instant.now().atZone(ZoneId.of("UTC")).toLocalDateTime(),
+                HttpStatus.UNAUTHORIZED.value(),
+                "Unauthorized",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<StandardException> handleGenericException(Exception ex, HttpServletRequest request) {
 
