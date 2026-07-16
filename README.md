@@ -32,7 +32,6 @@ An intelligent expense management application that leverages **Spring AI** and *
 - 🎤 [Voice Commands & AI Integration](docs/voice-commands-ai.md)
 - 📊 [Database Schema](docs/database-schema.md)
 - 🔧 [Configuration](docs/configuration.md)
-- 📩 [Contact me!](#contact-me)  
 
 ---
 
