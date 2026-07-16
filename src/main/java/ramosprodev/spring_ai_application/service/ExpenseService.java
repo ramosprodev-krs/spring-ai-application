@@ -2,7 +2,8 @@ package ramosprodev.spring_ai_application.service;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
-import ramosprodev.spring_ai_application.dto.CreateExpenseDto;
+import ramosprodev.spring_ai_application.dto.ExpenseCreateDto;
+import ramosprodev.spring_ai_application.dto.ExpensePatchDto;
 import ramosprodev.spring_ai_application.entity.Expense;
 import ramosprodev.spring_ai_application.entity.UserEntity;
 import ramosprodev.spring_ai_application.repository.ExpenseRepository;
@@ -25,9 +26,9 @@ public class ExpenseService {
 
     // CRUD operations are listed below
 
-    // Create expense with CreateExpenseDto
+    // Create expense with ExpenseCreateDto
     @Tool(description = "Upon receiving the audio, this tool will create a new expense for the user.")
-    public Expense createExpense(CreateExpenseDto expenseDto, Long userId) {
+    public Expense createExpense(ExpenseCreateDto expenseDto, Long userId) {
         // Find the user whose expense is being created for
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -49,5 +50,41 @@ public class ExpenseService {
     @Tool(description = "Upon receiving the audio, this tool will return a list of expenses for the user.")
     public List<Expense> readUserExpenses(Long userId) {
         return expenseRepository.findByUser_Id(userId);
+    }
+
+    public List<Expense> readUserExpensesIfValid(Long userId, String queryValidation) {
+        if (!"CONFIRMED".equals(queryValidation)) {
+            throw new IllegalArgumentException("Query validation failed");
+        }
+        return readUserExpenses(userId);
+    }
+
+    // Update expense by userId and expenseId
+    @Tool(description = "Upon receiving the audio, this tool will update an expense for the user.")
+    public Expense updateExpenseById(Long expenseId, Long userId, ExpensePatchDto expensePatchDto) {
+        Expense selectedExpense = expenseRepository.findByIdAndUser_Id(expenseId, userId)
+                .orElseThrow(() -> new RuntimeException("Expense not found"));
+
+        if (expensePatchDto.getAmount() != null) {
+            selectedExpense.setAmount(expensePatchDto.getAmount());
+        }
+        if (expensePatchDto.getDescription() != null) {
+            selectedExpense.setDescription(expensePatchDto.getDescription());
+        }
+
+        if (expensePatchDto.getLocal() != null) {
+            selectedExpense.setLocal(expensePatchDto.getLocal());
+        }
+
+        if (expensePatchDto.getMerchant() != null) {
+            selectedExpense.setMerchant(expensePatchDto.getMerchant());
+        }
+
+        return expenseRepository.save(selectedExpense);
+    }
+
+    // Delete expense by id
+    public void deleteExpenseById(Long expenseId) {
+        expenseRepository.deleteById(expenseId);
     }
 }
