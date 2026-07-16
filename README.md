@@ -1,6 +1,6 @@
 <div align="center">
   
-| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="https://github.com/spring-projects/spring-ai/raw/main/logo/spring-ai-logo.png" width=200> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | <br> <h1 align="center">spring-ai-application </h1> <br> |
+| &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="https://spring-ai-community.github.io/spring-ai-playground/assets/images/icon.png" width=200> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | <br> <h1 align="center">spring-ai-application </h1> <br> |
 | :--- | :--- |
 
 **An AI-powered expense tracking application with voice commands.**
