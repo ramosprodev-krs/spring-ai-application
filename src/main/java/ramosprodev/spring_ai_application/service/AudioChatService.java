@@ -9,33 +9,43 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeType;
 import org.springframework.web.multipart.MultipartFile;
-import ramosprodev.spring_ai_application.dto.CreateExpenseDto;
+import ramosprodev.spring_ai_application.dto.AudioCommandResponseDto;
 import ramosprodev.spring_ai_application.exception.AudioProcessingException;
 
 @Service
 public class AudioChatService {
 
     private static final Logger logger = LoggerFactory.getLogger(AudioChatService.class);
-
     private final ChatClient chatClient;
 
     public AudioChatService(ChatClient chatClient) {
         this.chatClient = chatClient;
     }
 
-    public CreateExpenseDto extractExpenseData(MultipartFile file) {
+    public AudioCommandResponseDto processAudioCommand(MultipartFile file) {
         try {
             Resource audioResource = new ByteArrayResource(file.getBytes());
+
             MimeType mimeType = resolveMimeType(file);
+            logger.info("Processando áudio com MimeType resolvido: {}", mimeType);
 
-            // Instantiate the converter pointing to the DTO
-            var outputConverter = new BeanOutputConverter<>(CreateExpenseDto.class);
+            var outputConverter = new BeanOutputConverter<>(AudioCommandResponseDto.class);
 
-            // Create the base instruction and concatenate the formatting rules required by Spring AI
-            String promptText = "Ouça o áudio com atenção e extraia os dados da despesa (valor, descrição, local e comerciante). "
-                    + outputConverter.getFormat();
+            String promptText = """
+                    Você é um assistente financeiro inteligente. Ouça o áudio do usuário.
+                    
+                    Primeiro, determine a intenção (campo 'intent'):
+                    - Use "CREATE" se o usuário estiver relatando um gasto para ser salvo.
+                    - Use "QUERY" se o usuário estiver fazendo uma pergunta sobre gastos passados.
+                    - Use "UPDATE" se o usuário estiver solicitando editar um gasto existente.
+                    
+                    Segundo, extraia os dados conforme a intenção:
+                    - Se a intenção for "CREATE", preencha o campo 'expenseData' com valor, descrição, local e comerciante.
+                    - Se a intenção for "QUERY", deixe o 'expenseData' nulo.
+                    - Se a intenção for "UPDATE", preencha o campo 'expenseId' com o ID da despesa a ser editada e o campo 'expensePatchData' com os novos valores (apenas os campos que devem ser alterados).
+                    
+                    """ + outputConverter.getFormat();
 
-            // Make the multimodal call to the AI service
             String aiResponse = chatClient.prompt()
                     .user(promptUserSpec -> promptUserSpec
                             .text(promptText)
@@ -44,58 +54,33 @@ public class AudioChatService {
                     .call()
                     .content();
 
+            logger.info("Resposta bruta do Gemini: \n{}", aiResponse);
+
             if (aiResponse == null) {
-                logger.warn("AI response was null for expense data extraction");
-                throw new AudioProcessingException("No response received from AI service");
+                throw new AudioProcessingException("Nenhuma resposta da IA");
             }
 
-            // Convert the string (JSON returned by Gemini) to the Java object
             return outputConverter.convert(aiResponse);
 
         } catch (Exception e) {
-            logger.error("Gemini multimodal processing failure", e);
-            throw new AudioProcessingException("Gemini multimodal processing failure: " + e.getMessage(), e);
-        }
-    }
-
-    public String processExpenseQuery(MultipartFile file) {
-        try {
-            Resource audioResource = new ByteArrayResource(file.getBytes());
-            MimeType mimeType = resolveMimeType(file);
-
-            String promptText = "Listen to the audio and confirm if the user is requesting to query their expenses. "
-                    + "Ouça o áudio e confirme se o usuário está solicitando consultar suas despesas. "
-                    + "Respond only with 'CONFIRMED' if it is a query request, or 'REJECTED' otherwise. "
-                    + "Responda apenas com 'CONFIRMED' se for uma solicitação de consulta, ou 'REJECTED' caso contrário.";
-
-            String aiResponse = chatClient.prompt()
-                    .user(promptUserSpec -> promptUserSpec
-                            .text(promptText)
-                            .media(mimeType, audioResource)
-                    )
-                    .call()
-                    .content();
-
-            if (aiResponse == null) {
-                logger.warn("AI response was null for expense query processing");
-                throw new AudioProcessingException("No response received from AI service");
-            }
-
-            return aiResponse.trim();
-
-        } catch (Exception e) {
-            logger.error("Gemini multimodal processing failure", e);
-            throw new AudioProcessingException("Gemini multimodal processing failure: " + e.getMessage(), e);
+            logger.error("Falha no processamento multimodal do Gemini", e);
+            throw new AudioProcessingException("Erro ao processar áudio: " + e.getMessage(), e);
         }
     }
 
     private MimeType resolveMimeType(MultipartFile file) {
         String contentType = file.getContentType();
-        String originalFilename = file.getOriginalFilename();
-        if (contentType == null || contentType.equals("application/octet-stream") ||
-                (originalFilename != null && originalFilename.contains("WhatsApp"))) {
-            contentType = "audio/ogg";
+        logger.info("Content-Type original enviado pelo frontend: {}", contentType);
+
+        if (contentType == null || contentType.equals("application/octet-stream")) {
+            return MimeType.valueOf("audio/webm");
         }
+
+        // Evita erro de parsing caso venha com codecs (ex: audio/webm;codecs=opus)
+        if (contentType.contains(";")) {
+            contentType = contentType.split(";")[0];
+        }
+
         return MimeType.valueOf(contentType);
     }
 }
