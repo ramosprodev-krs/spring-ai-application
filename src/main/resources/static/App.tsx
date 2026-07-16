@@ -1,5 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
+// ==========================================
+// 1. TIPAGENS E INTERFACES
+// ==========================================
 interface Expense {
   id?: number;
   description: string;
@@ -9,23 +12,23 @@ interface Expense {
   createdAt?: string;
 }
 
-interface UserEntity {
-  id?: number;
+interface UserProfile {
   username: string;
-  createdAt?: string;
-}
-
-interface UserPatchDto {
-  username: string;
-  password: string;
+  createdAt: string;
 }
 
 type Language = 'en' | 'pt';
 type Theme = 'light' | 'dark';
+type Tab = 'dashboard' | 'profile';
+
+// ==========================================
+// 2. CONFIGURAÇÕES E TRANSLATIONS
+// ==========================================
+const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 const translations = {
   en: {
-    title: 'Financial Panel - AI Powered',
+    title: 'SayExpense',
     login: 'Login',
     register: 'Register',
     username: 'Username',
@@ -33,65 +36,53 @@ const translations = {
     enter: 'Enter',
     signUp: 'Sign Up',
     logout: 'Logout',
-    logged: 'Logged in (JWT active)',
-    recording: 'Audio Recording',
-    recordingDesc: 'Record audio and AI will automatically determine what you want to do - create an expense or query your data.',
+    logged: 'Logged in',
+    recording: 'Audio Command',
+    recordingDesc: 'Record an audio to manage your expenses.',
     startRecording: 'Start Recording',
     stopRecording: 'Stop Recording',
     recorded: 'Recorded audio:',
-    sendToAI: 'Send to AI',
+    sendToAI: 'Send audio',
     discard: 'Discard',
-    yourExpenses: 'Your Expenses',
+    yourExpenses: 'Query Results',
     description: 'Description',
     local: 'Location',
     merchant: 'Merchant',
     amount: 'Amount',
     createdAt: 'Date',
     total: 'Total',
-    close: 'Close',
+    close: 'Clear',
     noExpenses: 'No expenses found.',
     loginSuccess: 'Login successful!',
     loginFailed: 'Login failed. Check your credentials.',
     registerSuccess: 'Registration successful! Please login.',
     registerFailed: 'Registration failed. Username may already exist.',
-    connectionError: 'Connection error with server.',
-    recordingNow: 'Recording... Speak your expense or query.',
-    recordingFinished: 'Recording finished. Ready to send.',
-    sendingAI: 'Sending to backend and processing with AI...',
-    expenseCreated: 'Success! Expense registered: ',
- querySent: 'Sending query to backend...',
-    querySuccess: 'Query completed! ',
-    expenseFound: ' expense(s) found.',
-    queryFailed: 'Error processing query. Check if your request is valid.',
-    audioError: 'Error accessing microphone.',
-    sendError: 'Connection error sending audio.',
+    sendError: 'Connection error.',
     logoutSuccess: 'Logout successful.',
-    audioDiscarded: 'Audio discarded. Record again.',
+    audioDiscarded: 'Audio discarded.',
     haveAccount: 'Already have an account?',
     noAccount: "Don't have an account?",
-    processing: 'AI is determining your intent...',
-    intentCreate: 'AI detected: Creating expense',
-    intentQuery: 'AI detected: Querying expenses',
-    aiProcessing: 'Processing with AI...',
-    welcome: 'Welcome to your financial assistant',
-    profile: 'User Profile',
-    profileDesc: 'View and manage your account information.',
-    currentUsername: 'Current Username',
-    memberSince: 'Member Since',
-    editProfile: 'Edit Profile',
-    deleteAccount: 'Delete Account',
+    processing: 'Processing...',
+    // Chaves que estavam faltando:
+    querySuccess: 'Expenses loaded successfully!',
+    expenseCreated: 'Expense recorded successfully!',
+    // Tabs e Perfil
+    tabDashboard: 'Dashboard',
+    tabProfile: 'Profile',
+    profile: 'My Profile',
+    updateProfile: 'Update Profile',
     newUsername: 'New Username',
     newPassword: 'New Password',
-    updateProfile: 'Update Profile',
-    cancel: 'Cancel',
-    profileUpdated: 'Profile updated successfully!',
-    profileUpdateFailed: 'Failed to update profile.',
-    deleteAccountConfirm: 'Are you sure you want to delete your account? This action cannot be undone.',
+    deleteAccount: 'Delete Account',
+    deleteConfirm: 'Are you sure you want to delete your account? This action deletes all your expenses and cannot be undone.',
+    profileUpdated: 'Profile updated! Please log in again.',
+    profileUpdateFailed: 'Failed to update profile. Username might be taken.',
     accountDeleted: 'Account deleted successfully.',
     accountDeleteFailed: 'Failed to delete account.',
+    memberSince: 'Member since'
   },
   pt: {
-    title: 'Painel Financeiro - API com IA',
+    title: 'SayExpense',
     login: 'Login',
     register: 'Cadastro',
     username: 'Usuário',
@@ -99,788 +90,525 @@ const translations = {
     enter: 'Entrar',
     signUp: 'Cadastrar',
     logout: 'Sair',
-    logged: 'Logado (JWT ativo)',
-    recording: 'Gravação de Áudio',
-    recordingDesc: 'Grave um áudio e a IA determinará automaticamente o que você quer fazer - criar uma despesa ou consultar seus dados.',
+    logged: 'Autenticado',
+    recording: 'Comando de Voz',
+    recordingDesc: 'Grave um áudio para gerenciar as despesas.',
     startRecording: 'Iniciar Gravação',
     stopRecording: 'Parar Gravação',
     recorded: 'Áudio gravado:',
-    sendToAI: 'Enviar para IA',
+    sendToAI: 'Enviar áudio',
     discard: 'Descartar',
-    yourExpenses: 'Suas Despesas',
+    yourExpenses: 'Resultados da Consulta',
     description: 'Descrição',
     local: 'Local',
     merchant: 'Comerciante',
     amount: 'Valor',
     createdAt: 'Data',
     total: 'Total',
-    close: 'Fechar',
+    close: 'Limpar',
     noExpenses: 'Nenhuma despesa encontrada.',
     loginSuccess: 'Login realizado com sucesso!',
     loginFailed: 'Falha no login. Verifique suas credenciais.',
     registerSuccess: 'Cadastro realizado com sucesso! Faça login.',
     registerFailed: 'Falha no cadastro. Usuário já pode existir.',
-    connectionError: 'Erro de conexão com o servidor.',
-    recordingNow: 'Gravando... Fale a sua despesa ou consulta.',
-    recordingFinished: 'Gravação finalizada. Pronto para enviar.',
-    sendingAI: 'Enviando para o backend e processando IA...',
-    expenseCreated: 'Sucesso! Despesa registrada: ',
-    querySent: 'Enviando consulta para o backend...',
-    querySuccess: 'Consulta realizada! ',
-    expenseFound: ' despesa(s) encontrada(s).',
-    queryFailed: 'Erro ao processar a consulta. Verifique se sua solicitação é válida.',
-    audioError: 'Erro ao acessar o microfone.',
-    sendError: 'Erro de conexão ao enviar o áudio.',
+    sendError: 'Erro de conexão.',
     logoutSuccess: 'Logout realizado.',
-    audioDiscarded: 'Áudio descartado. Grave novamente.',
+    audioDiscarded: 'Áudio descartado.',
     haveAccount: 'Já tem uma conta?',
     noAccount: 'Não tem uma conta?',
-    processing: 'A IA está determinando sua intenção...',
-    intentCreate: 'IA detectou: Criando despesa',
-    intentQuery: 'IA detectou: Consultando despesas',
-    aiProcessing: 'Processando com IA...',
-    welcome: 'Bem-vindo ao seu assistente financeiro',
-    profile: 'Perfil do Usuário',
-    profileDesc: 'Visualize e gerencie suas informações de conta.',
-    currentUsername: 'Usuário Atual',
-    memberSince: 'Membro Desde',
-    editProfile: 'Editar Perfil',
-    deleteAccount: 'Excluir Conta',
+    processing: 'Processando...',
+    // Chaves que estavam faltando:
+    querySuccess: 'Despesas carregadas com sucesso!',
+    expenseCreated: 'Despesa registrada com sucesso!',
+    // Tabs e Perfil
+    tabDashboard: 'Dashboard',
+    tabProfile: 'Perfil',
+    profile: 'Meu Perfil',
+    updateProfile: 'Atualizar Perfil',
     newUsername: 'Novo Usuário',
     newPassword: 'Nova Senha',
-    updateProfile: 'Atualizar Perfil',
-    cancel: 'Cancelar',
-    profileUpdated: 'Perfil atualizado com sucesso!',
-    profileUpdateFailed: 'Falha ao atualizar perfil.',
-    deleteAccountConfirm: 'Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.',
+    deleteAccount: 'Excluir Conta',
+    deleteConfirm: 'Tem certeza que deseja excluir sua conta? Isso apagará todas as suas despesas e é irreversível.',
+    profileUpdated: 'Perfil updated! Por favor, faça login novamente.',
+    profileUpdateFailed: 'Falha ao atualizar. O usuário já pode existir.',
     accountDeleted: 'Conta excluída com sucesso.',
-    accountDeleteFailed: 'Falha ao excluir conta.',
+    accountDeleteFailed: 'Falha ao excluir a conta.',
+    memberSince: 'Membro desde'
   }
 };
 
-function App() {
-  // Authentication state
-  const [token, setToken] = useState<string | null>(null);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [showLogin, setShowLogin] = useState(true);
-  
-  // Audio recording state
+// ==========================================
+// 3. CUSTOM HOOKS
+// ==========================================
+function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [mensagem, setMensagem] = useState('');
-  
-  // Expenses state
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [showExpenses, setShowExpenses] = useState(false);
-  
-  // User profile state
-  const [currentUser, setCurrentUser] = useState<UserEntity | null>(null);
-  const [showProfile, setShowProfile] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editUsername, setEditUsername] = useState('');
-  const [editPassword, setEditPassword] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
-  // UI state
-  const [language, setLanguage] = useState<Language>('en');
-  const [theme, setTheme] = useState<Theme>('light');
-  const [isProcessing, setIsProcessing] = useState(false);
-  
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
 
-  // Apply theme to document
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  const t = translations[language];
-
-  const toggleLanguage = () => {
-    setLanguage(prev => prev === 'en' ? 'pt' : 'en');
-  };
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
-
-  // --- AUTHENTICATION LOGIC ---
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const start = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      if (response.ok) {
-        const jwt = await response.text();
-        setToken(jwt);
-        setMensagem(t.loginSuccess);
-        // Fetch current user data after login
-        fetchCurrentUser(jwt);
-      } else {
-        setMensagem(t.loginFailed);
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
       }
-    } catch (error) {
-      setMensagem(t.connectionError);
-    }
-  };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('http://localhost:8080/api/v1/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      if (response.ok) {
-        setMensagem(t.registerSuccess);
-        setShowLogin(true);
-      } else {
-        setMensagem(t.registerFailed);
-      }
-    } catch (error) {
-      setMensagem(t.connectionError);
-    }
-  };
-
-  const handleLogout = () => {
-    setToken(null);
-    setUsername('');
-    setPassword('');
-    setExpenses([]);
-    setShowExpenses(false);
-    setAudioBlob(null);
-    setCurrentUser(null);
-    setShowProfile(false);
-    setMensagem(t.logoutSuccess);
-  };
-
-  // --- AUDIO RECORDING LOGIC ---
-  const startRecording = async () => {
-    try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlob);
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
       };
 
       mediaRecorder.start();
       setIsRecording(true);
-      setMensagem(t.recordingNow);
+      return true;
     } catch (error) {
-      setMensagem(t.audioError);
+      console.error("Mic error:", error);
+      return false;
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) {
+  const stop = () => {
+    if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+
+      // Desliga o hardware do microfone no navegador imediatamente
+      if (mediaRecorderRef.current.stream) {
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      }
       setIsRecording(false);
-      setMensagem(t.recordingFinished);
     }
   };
 
-  // --- AI-POWERED AUDIO PROCESSING ---
-  const sendAudioToAI = async () => {
-    if (!audioBlob || !token) return;
+  const clear = useCallback(() => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+    }
+    setAudioBlob(null);
+    setAudioUrl(null);
+  }, [audioUrl]);
 
-    setIsProcessing(true);
-    setMensagem(t.processing);
-    
-    const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.webm');
+  return { start, stop, clear, isRecording, audioBlob, audioUrl };
+}
+
+function usePersistedState<T>(key: string, initialValue: T) {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(state));
+  }, [key, state]);
+
+  return [state, setState] as const;
+}
+
+// ==========================================
+// 4. COMPONENTE PRINCIPAL
+// ==========================================
+export default function App() {
+  const [theme, setTheme] = usePersistedState<Theme>('app_theme', 'light');
+  const [language, setLanguage] = usePersistedState<Language>('app_language', 'pt');
+  const [token, setToken] = usePersistedState<string | null>('app_token', null);
+
+  const [mensagem, setMensagem] = useState({ text: '', type: 'info' });
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showLogin, setShowLogin] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+
+  const t = translations[language];
+  const recorder = useAudioRecorder();
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const showMessage = useCallback((text: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setMensagem({ text, type });
+    setTimeout(() => setMensagem({ text: '', type: 'info' }), 6000);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setToken(null);
+    setExpenses([]);
+    setUserProfile(null);
+    recorder.clear();
+    showMessage(t.logoutSuccess, 'success');
+  }, [setToken, recorder, showMessage, t.logoutSuccess]);
+
+  // --- BUSCAR DADOS DO USUÁRIO ---
+  useEffect(() => {
+    if (token) {
+      fetch(`${API_BASE_URL}/users/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then(data => setUserProfile(data))
+      .catch(() => handleLogout());
+    }
+  }, [token, handleLogout]);
+
+  // --- HANDLERS DE AUTENTICAÇÃO E PERFIL ---
+  const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const username = formData.get('username');
+    const password = formData.get('password');
+    const endpoint = showLogin ? '/auth/login' : '/users';
 
     try {
-      // Send to unified endpoint that determines intent automatically
-      const response = await fetch('http://localhost:8080/api/v1/expense/process', {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (!response.ok) throw new Error();
+
+      if (showLogin) {
+        const jwt = await response.text();
+        setToken(jwt);
+        showMessage(t.loginSuccess, 'success');
+        setActiveTab('dashboard');
+      } else {
+        showMessage(t.registerSuccess, 'success');
+        setShowLogin(true);
+      }
+    } catch {
+      showMessage(showLogin ? t.loginFailed : t.registerFailed, 'error');
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const username = formData.get('newUsername');
+    const password = formData.get('newPassword');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        method: 'PATCH',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (!response.ok) throw new Error();
+
+      showMessage(t.profileUpdated, 'success');
+      setToken(null);
+      setUserProfile(null);
+    } catch {
+      showMessage(t.profileUpdateFailed, 'error');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm(t.deleteConfirm)) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error();
+
+      showMessage(t.accountDeleted, 'success');
+      setToken(null);
+      setUserProfile(null);
+    } catch {
+      showMessage(t.accountDeleteFailed, 'error');
+    }
+  };
+
+  // --- HANDLERS DE ÁUDIO & IA ---
+  const sendAudioToAI = async () => {
+    if (!recorder.audioBlob || !token) return;
+
+    setIsProcessing(true);
+    showMessage(t.processing, 'info');
+
+    const formData = new FormData();
+    formData.append('file', recorder.audioBlob, 'audio.webm');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/expense/process`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
 
-      if (!response.ok) {
-        throw new Error('Processing failed');
-      }
-
+      if (!response.ok) throw new Error('Falha no processamento');
       const data = await response.json();
-      console.log('Response from unified endpoint:', data);
 
-      // Check if response is an array (query result) or single object (create result)
       if (Array.isArray(data)) {
-        // Query result - array of expenses
         setExpenses(data);
-        setShowExpenses(true);
-        setMensagem(`${t.querySuccess}${data.length}${t.expenseFound}`);
-      } else if (data && data.description && data.amount) {
-        // Create result - single expense
-        setMensagem(`${t.expenseCreated}${data.description} - R$ ${data.amount}`);
-      } else {
-        setMensagem('Unexpected response format');
+        showMessage(t.querySuccess, 'success');
+      }
+      else if (data && data.description) {
+        setExpenses([]);
+        showMessage(t.expenseCreated, 'success');
       }
 
-      setAudioBlob(null);
+      recorder.clear();
     } catch (error) {
-      console.error('Error processing audio:', error);
-      setMensagem(t.sendError);
+      showMessage(t.sendError, 'error');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const resetAudio = () => {
-    setAudioBlob(null);
-    setMensagem(t.audioDiscarded);
-  };
-
-  // --- USER PROFILE LOGIC ---
-  const fetchCurrentUser = async (authToken: string) => {
-    try {
-      const response = await fetch('http://localhost:8080/api/v1/users/me', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    }
-  };
-
-  const handleEditProfile = () => {
-    if (currentUser) {
-      setEditUsername(currentUser.username);
-      setEditPassword('');
-      setIsEditingProfile(true);
-    }
-  };
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) return;
-
-    try {
-      const response = await fetch('http://localhost:8080/api/v1/users/me', {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username: editUsername, password: editPassword })
-      });
-
-      if (response.ok) {
-        const updatedUser = await response.json();
-        setCurrentUser(updatedUser);
-        setIsEditingProfile(false);
-        setMensagem(t.profileUpdated);
-        fetchCurrentUser(token);
-      } else {
-        setMensagem(t.profileUpdateFailed);
-      }
-    } catch (error) {
-      setMensagem(t.profileUpdateFailed);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!token) return;
-
-    try {
-      const response = await fetch('http://localhost:8080/api/v1/users/me', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        setMensagem(t.accountDeleted);
-        handleLogout();
-      } else {
-        setMensagem(t.accountDeleteFailed);
-      }
-    } catch (error) {
-      setMensagem(t.accountDeleteFailed);
-    }
-  };
-
-  // Styles based on theme
-  const styles = {
-    container: {
-      padding: '2rem',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      maxWidth: '900px',
-      margin: '0 auto',
-      backgroundColor: theme === 'dark' ? '#1a1a2e' : '#f8fafc',
-      minHeight: '100vh',
-      color: theme === 'dark' ? '#e2e8f0' : '#1e293b',
-    },
-    header: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '2rem',
-      paddingBottom: '1rem',
-      borderBottom: `2px solid ${theme === 'dark' ? '#4f46e5' : '#4f46e5'}`,
-    },
-    title: {
-      margin: 0,
-      fontSize: '2rem',
-      fontWeight: '700',
-      color: theme === 'dark' ? '#818cf8' : '#4f46e5',
-    },
-    controls: {
-      display: 'flex',
-      gap: '0.5rem',
-    },
-    controlButton: {
-      padding: '0.5rem 1rem',
-      border: `1px solid ${theme === 'dark' ? '#475569' : '#cbd5e1'}`,
-      borderRadius: '8px',
-      backgroundColor: theme === 'dark' ? '#334155' : 'white',
-      color: theme === 'dark' ? '#e2e8f0' : '#1e293b',
-      cursor: 'pointer',
-      fontSize: '0.875rem',
-      transition: 'all 0.2s',
-    },
-    card: {
-      backgroundColor: theme === 'dark' ? '#1e293b' : 'white',
-      padding: '2rem',
-      borderRadius: '16px',
-      boxShadow: theme === 'dark' ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-      marginBottom: '1.5rem',
-    },
-    cardTitle: {
-      marginTop: 0,
-      marginBottom: '1.5rem',
-      fontSize: '1.5rem',
-      fontWeight: '600',
-      color: theme === 'dark' ? '#f1f5f9' : '#1e293b',
-    },
-    input: {
-      width: '100%',
-      padding: '0.75rem 1rem',
-      border: `1px solid ${theme === 'dark' ? '#475569' : '#cbd5e1'}`,
-      borderRadius: '8px',
-      fontSize: '1rem',
-      backgroundColor: theme === 'dark' ? '#334155' : 'white',
-      color: theme === 'dark' ? '#e2e8f0' : '#1e293b',
-      transition: 'border-color 0.2s',
-    },
-    button: {
-      width: '100%',
-      padding: '0.875rem',
-      border: 'none',
-      borderRadius: '8px',
-      fontSize: '1rem',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-    },
-    primaryButton: {
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      color: 'white',
-    },
-    secondaryButton: {
-      background: theme === 'dark' ? '#475569' : '#64748b',
-      color: 'white',
-    },
-    dangerButton: {
-      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      color: 'white',
-    },
-    successButton: {
-      background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      color: 'white',
-    },
-    message: {
-      padding: '1rem',
-      marginBottom: '1rem',
-      borderRadius: '8px',
-      borderLeft: '4px solid',
-    },
-    errorMessage: {
-      backgroundColor: theme === 'dark' ? '#7f1d1d' : '#fef2f2',
-      borderColor: '#ef4444',
-      color: theme === 'dark' ? '#fca5a5' : '#991b1b',
-    },
-    successMessage: {
-      backgroundColor: theme === 'dark' ? '#14532d' : '#f0fdf4',
-      borderColor: '#22c55e',
-      color: theme === 'dark' ? '#86efac' : '#166534',
-    },
-    table: {
-      width: '100%',
-      marginTop: '1rem',
-    },
-    tableHeader: {
-      backgroundColor: theme === 'dark' ? '#4f46e5' : '#4f46e5',
-      color: 'white',
-    },
-    tableCell: {
-      padding: '0.75rem',
-      borderBottom: `1px solid ${theme === 'dark' ? '#475569' : '#e2e8f0'}`,
-    },
-    tableRow: (index: number) => ({
-      backgroundColor: index % 2 === 0 ? (theme === 'dark' ? '#334155' : '#f8fafc') : (theme === 'dark' ? '#1e293b' : 'white'),
-    }),
-  };
-
   return (
-    <div style={styles.container}>
-      {/* Header with title and controls */}
-      <div style={styles.header}>
-        <h1 style={styles.title}>{t.title}</h1>
-        <div style={styles.controls}>
-          <button onClick={toggleLanguage} style={styles.controlButton}>
+    <div className="app-container">
+      {/* Cabeçalho */}
+      <header className="header">
+        <h1>🎙️ {t.title}</h1>
+        <div className="controls">
+          <button className="btn-icon" onClick={() => setLanguage(l => l === 'en' ? 'pt' : 'en')}>
             {language === 'en' ? '🇧🇷 PT' : '🇺🇸 EN'}
           </button>
-          <button onClick={toggleTheme} style={styles.controlButton}>
+          <button className="btn-icon" onClick={() => setTheme(th => th === 'light' ? 'dark' : 'light')}>
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Message display */}
-      {mensagem && (
-        <div style={{
-          ...styles.message,
-          ...(mensagem.includes('Erro') || mensagem.includes('Falha') || mensagem.includes('Error') || mensagem.includes('Failed') ? styles.errorMessage : styles.successMessage)
-        }}>
-          {mensagem}
-        </div>
-      )}
+      <div className="content-wrapper">
+        {/* Sistema de Alertas */}
+        {mensagem.text && (
+          <div style={{
+            padding: '1rem',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            color: '#fff',
+            animation: 'fadeIn 0.3s ease',
+            backgroundColor: mensagem.type === 'error' ? 'var(--danger)' : (mensagem.type === 'success' ? 'var(--success)' : 'var(--primary)')
+          }}>
+            {mensagem.text}
+          </div>
+        )}
 
-      {/* Authentication Screen */}
-      {!token ? (
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>{showLogin ? t.login : t.register}</h2>
-          <form onSubmit={showLogin ? handleLogin : handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>{t.username}</label>
-              <input
-                type="text"
-                placeholder={t.username}
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                style={styles.input}
-                required
-              />
+        {/* Tela de Login / Registro */}
+        {!token ? (
+          <div className="card form-card">
+            <h2>{showLogin ? t.login : t.register}</h2>
+            <form onSubmit={handleAuth}>
+              <div className="form-group">
+                <label>{t.username}</label>
+                <input name="username" type="text" placeholder={t.username} required />
+              </div>
+              <div className="form-group">
+                <label>{t.password}</label>
+                <input name="password" type="password" placeholder={t.password} required />
+              </div>
+              <button className="btn btn-primary" type="submit">
+                {showLogin ? t.enter : t.signUp}
+              </button>
+            </form>
+
+            <div className="toggle-auth">
+              {showLogin ? t.noAccount : t.haveAccount}
+              <button type="button" className="btn-link" onClick={() => { setShowLogin(!showLogin); setMensagem({text: '', type: 'info'}); }}>
+                {showLogin ? t.signUp : t.enter}
+              </button>
             </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>{t.password}</label>
-              <input
-                type="password"
-                placeholder={t.password}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                style={styles.input}
-                required
-              />
-            </div>
-            <button type="submit" style={{ ...styles.button, ...styles.primaryButton }}>
-              {showLogin ? t.enter : t.signUp}
-            </button>
-          </form>
-          <p style={{ marginTop: '1rem', textAlign: 'center', color: theme === 'dark' ? '#94a3b8' : '#64748b' }}>
-            {showLogin ? t.noAccount : t.haveAccount}
-            <button
-              type="button"
-              onClick={() => { setShowLogin(!showLogin); setMensagem(''); }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: theme === 'dark' ? '#818cf8' : '#4f46e5',
-                cursor: 'pointer',
-                fontWeight: '600',
-                marginLeft: '0.5rem'
-              }}
-            >
-              {showLogin ? t.register : t.login}
-            </button>
-          </p>
-        </div>
-      ) : (
-        /* Main Dashboard */
-        <>
-          {/* Status header */}
-          <div style={{ ...styles.card, padding: '1rem', marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <p style={{ margin: 0, color: theme === 'dark' ? '#4ade80' : '#16a34a', fontWeight: '600' }}>
-                ✓ {t.logged}
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={() => setShowProfile(!showProfile)}
-                  style={{ ...styles.button, ...styles.secondaryButton, width: 'auto', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-                >
-                  {t.profile}
-                </button>
-                <button
-                  onClick={handleLogout}
-                  style={{ ...styles.button, ...styles.dangerButton, width: 'auto', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-                >
+          </div>
+        ) : (
+          /* ÁREA LOGADA */
+          <>
+            {/* Status e Navegação de Abas */}
+            <div className="card status-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', padding: '1rem 2rem', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="status-badge">
+                  ✓ {t.logged} {userProfile && `- @${userProfile.username}`}
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={handleLogout}>
                   {t.logout}
                 </button>
               </div>
-            </div>
-          </div>
 
-          {/* User Profile Section */}
-          {showProfile && (
-            <div style={styles.card}>
-              <h2 style={styles.cardTitle}>{t.profile}</h2>
-              <p style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', lineHeight: '1.6' }}>
-                {t.profileDesc}
-              </p>
-
-              {!isEditingProfile ? (
-                <>
-                  {currentUser && (
-                    <div style={{ marginTop: '1.5rem', padding: '1.5rem', backgroundColor: theme === 'dark' ? '#334155' : '#f1f5f9', borderRadius: '12px' }}>
-                      <div style={{ marginBottom: '1rem' }}>
-                        <p style={{ margin: 0, color: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                          {t.currentUsername}
-                        </p>
-                        <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>
-                          {currentUser.username}
-                        </p>
-                      </div>
-                      {currentUser.createdAt && (
-                        <div>
-                          <p style={{ margin: 0, color: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                            {t.memberSince}
-                          </p>
-                          <p style={{ margin: 0, fontSize: '1rem' }}>
-                            {new Date(currentUser.createdAt).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-                    <button
-                      onClick={handleEditProfile}
-                      style={{ ...styles.button, ...styles.primaryButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                    >
-                      {t.editProfile}
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      style={{ ...styles.button, ...styles.dangerButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                    >
-                      {t.deleteAccount}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>{t.newUsername}</label>
-                      <input
-                        type="text"
-                        value={editUsername}
-                        onChange={e => setEditUsername(e.target.value)}
-                        style={styles.input}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>{t.newPassword}</label>
-                      <input
-                        type="password"
-                        value={editPassword}
-                        onChange={e => setEditPassword(e.target.value)}
-                        style={styles.input}
-                        required
-                      />
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <button
-                        type="submit"
-                        style={{ ...styles.button, ...styles.primaryButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                      >
-                        {t.updateProfile}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingProfile(false)}
-                        style={{ ...styles.button, ...styles.secondaryButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                      >
-                        {t.cancel}
-                      </button>
-                    </div>
-                  </form>
-                </>
-              )}
-
-              {/* Delete Account Confirmation Modal */}
-              {showDeleteConfirm && (
-                <div style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 1000
-                }}>
-                  <div style={{
-                    ...styles.card,
-                    maxWidth: '400px',
-                    width: '90%'
-                  }}>
-                    <h3 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.25rem', fontWeight: '600' }}>
-                      {t.deleteAccount}
-                    </h3>
-                    <p style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', marginBottom: '1.5rem' }}>
-                      {t.deleteAccountConfirm}
-                    </p>
-                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => setShowDeleteConfirm(false)}
-                        style={{ ...styles.button, ...styles.secondaryButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                      >
-                        {t.cancel}
-                      </button>
-                      <button
-                        onClick={handleDeleteAccount}
-                        style={{ ...styles.button, ...styles.dangerButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                      >
-                        {t.deleteAccount}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Audio Recording Section */}
-          <div style={styles.card}>
-            <h2 style={styles.cardTitle}>{t.recording}</h2>
-            <p style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', lineHeight: '1.6' }}>
-              {t.recordingDesc}
-            </p>
-
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-              {!isRecording ? (
+              {/* Menu das Abas */}
+              <div style={{ display: 'flex', gap: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
                 <button
-                  onClick={startRecording}
-                  style={{ ...styles.button, ...styles.dangerButton, width: 'auto', padding: '0.875rem 1.5rem' }}
-                  disabled={isProcessing}
+                  onClick={() => setActiveTab('dashboard')}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem',
+                    color: activeTab === 'dashboard' ? 'var(--primary)' : 'var(--text-muted)',
+                    fontWeight: activeTab === 'dashboard' ? '600' : '400',
+                    borderBottom: activeTab === 'dashboard' ? '2px solid var(--primary)' : '2px solid transparent',
+                    paddingBottom: '0.5rem', transition: 'all 0.2s'
+                  }}
                 >
-                  🎙️ {t.startRecording}
+                  📊 {t.tabDashboard}
                 </button>
-              ) : (
                 <button
-                  onClick={stopRecording}
-                  style={{ ...styles.button, ...styles.secondaryButton, width: 'auto', padding: '0.875rem 1.5rem' }}
+                  onClick={() => setActiveTab('profile')}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem',
+                    color: activeTab === 'profile' ? 'var(--primary)' : 'var(--text-muted)',
+                    fontWeight: activeTab === 'profile' ? '600' : '400',
+                    borderBottom: activeTab === 'profile' ? '2px solid var(--primary)' : '2px solid transparent',
+                    paddingBottom: '0.5rem', transition: 'all 0.2s'
+                  }}
                 >
-                  ⏹️ {t.stopRecording}
-                </button>
-              )}
-            </div>
-
-            {audioBlob && (
-              <div style={{ marginTop: '1.5rem', padding: '1.5rem', backgroundColor: theme === 'dark' ? '#334155' : '#f1f5f9', borderRadius: '12px' }}>
-                <p style={{ margin: '0 0 1rem 0', fontWeight: '600' }}>{t.recorded}</p>
-                <audio controls src={URL.createObjectURL(audioBlob)} style={{ width: '100%', marginBottom: '1rem' }}></audio>
-
-                <button
-                  onClick={sendAudioToAI}
-                  disabled={isProcessing}
-                  style={{ ...styles.button, ...styles.successButton, width: '100%' }}
-                >
-                  {isProcessing ? '⏳ Processing...' : '🤖 ' + t.sendToAI}
+                  👤 {t.tabProfile}
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Expenses List Section */}
-          {showExpenses && (
-            <div style={styles.card}>
-              <h2 style={styles.cardTitle}>{t.yourExpenses}</h2>
-              {expenses.length > 0 ? (
-                <>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr style={styles.tableHeader}>
-                          <th style={styles.tableCell}>{t.description}</th>
-                          <th style={styles.tableCell}>{t.local}</th>
-                          <th style={styles.tableCell}>{t.merchant}</th>
-                          <th style={{ ...styles.tableCell, textAlign: 'right' as const }}>{t.amount}</th>
-                          <th style={styles.tableCell}>{t.createdAt}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {expenses.map((expense, index) => (
-                          <tr key={index} style={styles.tableRow(index)}>
-                            <td style={styles.tableCell}>{expense.description}</td>
-                            <td style={styles.tableCell}>{expense.local}</td>
-                            <td style={styles.tableCell}>{expense.merchant}</td>
-                            <td style={{ ...styles.tableCell, textAlign: 'right' as const, fontWeight: '600' }}>
-                              R$ {expense.amount.toFixed(2)}
-                            </td>
-                            <td style={styles.tableCell}>
-                              {expense.createdAt ? new Date(expense.createdAt).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US') : 'N/A'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p style={{ marginTop: '1rem', fontWeight: '700', textAlign: 'right' as const, fontSize: '1.125rem' }}>
-                    {t.total}: R$ {expenses.reduce((sum, exp) => sum + exp.amount, 0).toFixed(2)}
-                  </p>
-                </>
-              ) : (
-                <p style={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', fontStyle: 'italic', textAlign: 'center' as const, padding: '2rem' }}>
-                  {t.noExpenses}
-                </p>
-              )}
-              <button
-                onClick={() => setShowExpenses(false)}
-                style={{ ...styles.button, ...styles.secondaryButton, marginTop: '1rem', width: 'auto', padding: '0.5rem 1.5rem' }}
-              >
-                {t.close}
-              </button>
             </div>
-          )}
-        </>
-      )}
+
+            {/* ABA: DASHBOARD */}
+            {activeTab === 'dashboard' && (
+              <div className="dashboard-grid">
+                {/* WIDGET 1: GRAVADOR DE ÁUDIO */}
+                <div className="card">
+                  <h2>{t.recording}</h2>
+                  <p className="subtitle">{t.recordingDesc}</p>
+
+                  {!recorder.isRecording ? (
+                    <button className="btn btn-primary" onClick={() => recorder.start()} disabled={isProcessing}>
+                      🎙️ {t.startRecording}
+                    </button>
+                  ) : (
+                    <button className="btn btn-secondary" onClick={() => recorder.stop()}>
+                      {t.stopRecording}
+                    </button>
+                  )}
+
+                  {recorder.audioUrl && (
+                    <div className="audio-preview">
+                      <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600' }}>{t.recorded}</p>
+                      <audio controls src={recorder.audioUrl} />
+
+                      <div className="audio-actions action-buttons">
+                        <button className="btn btn-success" onClick={sendAudioToAI} disabled={isProcessing}>
+                          {isProcessing ? '⏳...' : t.sendToAI}
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => { recorder.clear(); showMessage(t.audioDiscarded, 'info'); }} disabled={isProcessing}>
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* WIDGET 2: RESULTADOS DA IA (Tabela) */}
+                <div className="card" style={{ opacity: expenses.length > 0 ? 1 : 0.5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h2 style={{ margin: 0 }}>{t.yourExpenses}</h2>
+                    {expenses.length > 0 && (
+                      <button className="btn btn-secondary btn-sm" onClick={() => setExpenses([])}>
+                        {t.close}
+                      </button>
+                    )}
+                  </div>
+
+                  {expenses.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 1rem' }}>
+                      <span style={{ fontSize: '2rem', display: 'block', marginBottom: '1rem' }}>📂</span>
+                      {t.noExpenses}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="table-responsive">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>{t.description}</th>
+                              <th>{t.local}</th>
+                              <th>{t.merchant}</th>
+                              <th>{t.createdAt}</th>
+                              <th className="amount">{t.amount}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {expenses.map((exp, i) => (
+                              <tr key={exp.id || i}>
+                                <td>{exp.description}</td>
+                                <td>{exp.local}</td>
+                                <td>{exp.merchant}</td>
+                                <td>
+                                  {exp.createdAt ? new Date(exp.createdAt).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US') : 'N/A'}
+                                </td>
+                                <td className="amount">
+                                  R$ {exp.amount.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{ marginTop: '1.5rem', textAlign: 'right', fontSize: '1.25rem' }}>
+                        <span style={{ color: 'var(--text-muted)', marginRight: '1rem' }}>{t.total}:</span>
+                        <strong>R$ {expenses.reduce((sum, exp) => sum + exp.amount, 0).toFixed(2)}</strong>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ABA: PERFIL */}
+            {activeTab === 'profile' && (
+              <div className="dashboard-grid">
+                <div className="card form-card">
+                  <h2>👤 {t.profile}</h2>
+                  {userProfile && (
+                    <p className="subtitle" style={{ textAlign: 'center' }}>
+                      {t.memberSince}: <strong>{new Date(userProfile.createdAt).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}</strong>
+                    </p>
+                  )}
+
+                  <form onSubmit={handleUpdateProfile} style={{ marginBottom: '2.5rem', marginTop: '1.5rem' }}>
+                    <div className="form-group">
+                      <label>{t.newUsername}</label>
+                      <input name="newUsername" type="text" defaultValue={userProfile?.username} required />
+                    </div>
+                    <div className="form-group">
+                      <label>{t.newPassword}</label>
+                      <input name="newPassword" type="password" placeholder="***" required />
+                    </div>
+                    <button className="btn btn-secondary" type="submit">
+                      {t.updateProfile}
+                    </button>
+                  </form>
+
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
+                    <button className="btn btn-danger" onClick={handleDeleteAccount}>
+                      ⚠️ {t.deleteAccount}
+                    </button>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>
+                      * {t.deleteConfirm}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
-
-export default App;
