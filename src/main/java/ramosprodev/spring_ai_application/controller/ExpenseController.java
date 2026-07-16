@@ -1,16 +1,14 @@
 package ramosprodev.spring_ai_application.controller;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import ramosprodev.spring_ai_application.dto.CreateExpenseDto;
+import ramosprodev.spring_ai_application.dto.AudioCommandResponseDto;
 import ramosprodev.spring_ai_application.entity.Expense;
-import ramosprodev.spring_ai_application.entity.UserEntity;
 import ramosprodev.spring_ai_application.service.AudioChatService;
 import ramosprodev.spring_ai_application.service.ExpenseService;
+import ramosprodev.spring_ai_application.util.AuthenticationUtil;
 
 import java.util.List;
 
@@ -26,40 +24,27 @@ public class ExpenseController {
         this.audioChatService = audioChatService;
     }
 
-    @PostMapping(value = "/audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Expense> createExpenseViaAudio(
-            @RequestParam("file") MultipartFile file,
-            Authentication authentication) {
+    @PostMapping("/process")
+    public ResponseEntity<?> processAudio(@RequestParam("file") MultipartFile file, Authentication authentication) {
+        AudioCommandResponseDto command = audioChatService.processAudioCommand(file);
 
-        if (authentication == null || authentication.getPrincipal() == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if ("CREATE".equals(command.getIntent())) {
+            Long userId = AuthenticationUtil.getUserId(authentication);
+            Expense savedExpense = expenseService.createExpense(command.getExpenseData(), userId);
+            return ResponseEntity.ok(savedExpense);
+
+        } else if ("QUERY".equals(command.getIntent())) {
+            Long userId = AuthenticationUtil.getUserId(authentication);
+            List<Expense> results = expenseService.readUserExpenses(userId);
+            return ResponseEntity.ok(results);
+
+        } else if ("UPDATE".equals(command.getIntent())) {
+            Long userId = AuthenticationUtil.getUserId(authentication);
+            Expense updatedExpense = expenseService.updateExpenseById(command.getExpenseId(), userId, command.getExpensePatchData());
+            return ResponseEntity.ok(updatedExpense);
         }
 
-        UserEntity user = (UserEntity) authentication.getPrincipal();
-        CreateExpenseDto extractedDto = audioChatService.extractExpenseData(file);
-        Expense savedExpense = expenseService.createExpense(extractedDto, user.getId());
+        return ResponseEntity.badRequest().body("Não foi possível determinar a ação.");
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedExpense);
-    }
-
-    @PostMapping(value = "/query", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<List<Expense>> readUserExpenses(
-            @RequestParam("file") MultipartFile file,
-            Authentication authentication) {
-
-        if (authentication == null || authentication.getPrincipal() == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        UserEntity user = (UserEntity) authentication.getPrincipal();
-        String queryValidation = audioChatService.processExpenseQuery(file);
-
-        if (!queryValidation.equals("CONFIRMED")) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        List<Expense> expenses = expenseService.readUserExpenses(user.getId());
-
-        return ResponseEntity.ok(expenses);
     }
 }
