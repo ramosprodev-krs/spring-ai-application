@@ -5,15 +5,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
-public class CreateExpenseDto {
-    private BigDecimal amount;
-    private String description;
-    private String local;
-    private String merchant;
+public class UserCreateDto {
+    private String username;
+    private String password;
 }
